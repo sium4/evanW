@@ -162,6 +162,11 @@ function generateId() {
     return Math.random().toString(36).substr(2, 9);
 }
 
+// Helper to escape regex special chars for safe regex creation
+function escapeRegExp(string) {
+    return String(string).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Normalize order object for legacy admin UI compatibility
 function normalizeOrderForLegacy(o) {
     if (!o) return o;
@@ -283,8 +288,10 @@ app.post('/api/auth/login', async (req, res) => {
         const emailLower = (email || '').toLowerCase();
 
         // Try MongoDB first (if connected)
-        if (AdminModel) {
-            const admin = await AdminModel.findOne({ email: emailLower });
+        if (AdminModel && mongoose.connection.readyState === 1) {
+            // Use a case-insensitive lookup to avoid failing on email case differences
+            const re = new RegExp('^' + escapeRegExp(emailLower) + '$', 'i');
+            const admin = await AdminModel.findOne({ email: { $regex: re } });
             if (admin) {
                 console.log('🔐 /api/auth/login -> using MongoDB auth for', emailLower);
                 const valid = await admin.comparePassword(password);
@@ -951,6 +958,29 @@ app.get('/api/debug/status', (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to read debug status', message: err.message });
+    }
+});
+
+// Temporary debug route: list admins directly from Mongo (no auth) for troubleshooting
+app.get('/api/debug/admins', async (req, res) => {
+    try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({ error: 'MongoDB not connected', state: mongoose.connection.readyState });
+        }
+
+        // Try Mongoose model first
+        if (AdminModel) {
+            const docs = await AdminModel.find().lean();
+            return res.json({ source: 'model', count: docs.length, admins: docs.map(a => ({ _id: a._id, email: a.email, name: a.name })) });
+        }
+
+        // Fallback to raw collection access
+        const coll = mongoose.connection.db.collection('admins');
+        const docs = await coll.find({}).project({ email: 1, name: 1 }).toArray();
+        res.json({ source: 'collection', count: docs.length, admins: docs });
+    } catch (err) {
+        console.error('Debug admins error:', err);
+        res.status(500).json({ error: 'Failed to fetch admins', message: err.message });
     }
 });
 
