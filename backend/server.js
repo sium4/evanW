@@ -280,13 +280,18 @@ const upload = multer({
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        const emailLower = (email || '').toLowerCase();
 
         // Try MongoDB first (if connected)
         if (AdminModel) {
-            const admin = await AdminModel.findOne({ email: email.toLowerCase() });
+            const admin = await AdminModel.findOne({ email: emailLower });
             if (admin) {
+                console.log('🔐 /api/auth/login -> using MongoDB auth for', emailLower);
                 const valid = await admin.comparePassword(password);
-                if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+                if (!valid) {
+                    console.log('🔐 /api/auth/login -> Mongo auth failed for', emailLower);
+                    return res.status(401).json({ error: 'Invalid credentials' });
+                }
                 const token = generateJWT({ _id: admin._id.toString(), email: admin.email, role: admin.role });
                 return res.json({
                     success: true,
@@ -294,11 +299,13 @@ app.post('/api/auth/login', async (req, res) => {
                     user: { id: admin._id.toString(), name: admin.name, email: admin.email, role: admin.role }
                 });
             }
+            console.log('🔐 /api/auth/login -> AdminModel present but no admin found in Mongo for', emailLower);
             // Fallthrough to file-based fallback if not found in Mongo
         }
 
         // Fallback: file-based admin
-        const admin = database.admins.find(a => a.email === email);
+        console.log('🔐 /api/auth/login -> falling back to file DB for', emailLower);
+        const admin = database.admins.find(a => a.email === emailLower);
         if (!admin) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
@@ -928,6 +935,23 @@ app.all('/api/status', (req, res) => {
             ? fs.readdirSync(path.join(__dirname, 'uploads/products'))
             : []
     });
+});
+
+// Temporary debug endpoint for deployment verification
+app.get('/api/debug/status', (req, res) => {
+    try {
+        res.json({
+            mongoEnvPresent: !!(process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGODB_URL),
+            mongooseConnectionState: mongoose && mongoose.connection ? mongoose.connection.readyState : null,
+            AdminModelLoaded: !!AdminModel,
+            OrderModelLoaded: !!OrderModel,
+            ProductModelLoaded: !!ProductModel,
+            usingFileFallback: !(process.env.MONGO_URI || process.env.MONGODB_URI || process.env.MONGODB_URL),
+            now: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to read debug status', message: err.message });
+    }
 });
 
 const PORT = process.env.PORT || 5000;
