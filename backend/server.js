@@ -917,11 +917,12 @@ app.use((req, res) => {
 });
 
 // ==================== SERVER START ====================
-app.get('/api/status', (req, res) => {
+app.all('/api/status', (req, res) => {
     res.json({
         status: 'online',
-        productsCount: database.products.length,
-        categoriesCount: database.categories.length,
+        method: req.method,
+        productsCount: Array.isArray(database.products) ? database.products.length : 0,
+        categoriesCount: Array.isArray(database.categories) ? database.categories.length : 0,
         uploadsDir: path.join(__dirname, 'uploads/products'),
         uploadedFiles: fs.existsSync(path.join(__dirname, 'uploads/products')) 
             ? fs.readdirSync(path.join(__dirname, 'uploads/products'))
