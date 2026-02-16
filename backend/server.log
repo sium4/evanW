@@ -1,0 +1,88 @@
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+    ╔═══════════════════════════════════════════╗
+    ║  🍫 Evan's Bakery Admin Server Started     ║
+    ║  Server: http://localhost:5000          ║
+    ║  Environment: development ║
+    ║  Admin Login:                              ║
+    ║  - Contact Email: rhs0@yahoo.com           ║
+    ╚═══════════════════════════════════════════╝
+    
+✅ Connected to MongoDB
+📦 /api/admin/orders -> Mongo returned 2 orders
+📦 /api/admin/orders -> Mongo returned 2 orders
+📦 /api/admin/orders -> Mongo returned 2 orders
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+🔵 API: /api/products (public) - Returning 7 products
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+🔵 API: /api/products (public) - Returning 7 products
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+🔵 API: /api/products (public) - Returning 7 products
+📌 POST /api/orders -> saving to MongoDB
+💾 Database saved
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+🔵 API: /api/products (public) - Returning 7 products
+📦 /api/admin/orders -> Mongo returned 3 orders
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+📦 /api/admin/orders -> Mongo returned 3 orders
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+📦 /api/admin/orders -> Mongo returned 3 orders
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
+✅ Database loaded from file
+📊 Loaded: 1 orders, 7 products, 1 users, 6 categories
+
+🔵 API: /api/admin/products - Returning 7 products
+
+🔵 API: /api/admin/dashboard called
+📌 /api/admin/dashboard -> fetching orders from MongoDB
+✅ Sending response (Mongo): {"totalOrders":3,"totalSales":2019.6}
