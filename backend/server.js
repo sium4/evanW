@@ -32,6 +32,15 @@ if (MONGO_URI) {
 
 const app = express();
 
+// ------------------ DEBUG: Request logging ------------------
+// Log every incoming request so we can see which paths reach the server
+app.use((req, res, next) => {
+    try {
+        console.log(`➡️  Incoming request: ${req.method} ${req.originalUrl} - Host: ${req.headers.host}`);
+    } catch (e) { /* ignore logging errors */ }
+    next();
+});
+
 // ==================== MIDDLEWARE ====================
 app.use(cors());
 app.use(express.json());
