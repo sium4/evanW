@@ -103,8 +103,16 @@ function getDefaultDatabase() {
     };
 }
 
-// Load database from file or use defaults
-let database = loadDatabase();
+// Load database only when no MongoDB configured (file DB fallback)
+// If a Mongo URI is provided we avoid reading `database.json` at startup
+// to prevent crashes when that file is missing/empty in deployments.
+let database = getDefaultDatabase();
+if (!MONGO_URI) {
+    database = loadDatabase();
+} else {
+    // keep defaults in memory; endpoints will prefer MongoDB when available
+    database = getDefaultDatabase();
+}
 
 // Optional: bootstrap an admin account from an environment variable for initial setup.
 // Set `ADMIN_INIT` to a JSON string with `email`, `password`, and optional `name`.
@@ -589,11 +597,35 @@ app.post('/api/admin/settings', authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // ==================== ROUTES: PUBLIC PRODUCTS ====================
-app.get('/api/products', (req, res) => {
-    // Reload database to get fresh product stock data
-    database = loadDatabase();
-    console.log(`🔵 API: /api/products (public) - Returning ${database.products.length} products`);
-    res.json(database.products);
+app.get('/api/products', async (req, res) => {
+    try {
+        // Prefer MongoDB when available
+        if (ProductModel && mongoose.connection.readyState === 1) {
+            const products = await ProductModel.find().lean();
+            console.log(`🔵 API: /api/products (public) - Returning ${products.length} products (Mongo)`);
+            return res.json(products);
+        }
+
+        // If mongoose is connected but ProductModel not loaded, try direct collection
+        if (mongoose.connection.readyState === 1) {
+            try {
+                const coll = mongoose.connection.db.collection('products');
+                const products = await coll.find().toArray();
+                console.log(`🔵 API: /api/products (public) - Returning ${products.length} products (Mongo collection)`);
+                return res.json(products);
+            } catch (e) {
+                console.warn('Could not read products from Mongo collection, falling back to file DB:', e.message);
+            }
+        }
+
+        // Fallback to file DB when Mongo not available
+        database = loadDatabase();
+        console.log(`🔵 API: /api/products (public) - Returning ${database.products.length} products (file)`);
+        res.json(database.products);
+    } catch (err) {
+        console.error('/api/products error:', err);
+        res.status(500).json({ error: 'Failed to load products' });
+    }
 });
 
 // Public categories now served by routes/categories.js
@@ -616,8 +648,8 @@ app.get('/api/users', (req, res) => {
 });
 
 // ==================== ROUTES: CUSTOMER ORDERS ====================
-// POST /api/orders - try Mongo first, fallback to file DB
-app.post('/api/orders', async (req, res) => {
+// Shared order creation handler used by both /api/orders and legacy /api/order
+async function createOrderHandler(req, res) {
     try {
         const {
             customerId,
@@ -688,8 +720,6 @@ app.post('/api/orders', async (req, res) => {
                 saveDatabase();
             }
 
-            // Optionally send WhatsApp or other notifications here (left unchanged)
-
             return res.status(201).json({ success: true, order: saved });
         }
 
@@ -730,6 +760,26 @@ app.post('/api/orders', async (req, res) => {
     } catch (error) {
         console.error('Order creation error:', error);
         return res.status(500).json({ error: 'Failed to create order', details: error.message });
+    }
+}
+
+// Register routes (current and legacy)
+app.post('/api/orders', createOrderHandler);
+app.post('/api/order', createOrderHandler); // legacy compatibility
+
+// Public: GET /api/orders -> return recent orders (Mongo preferred, file fallback)
+app.get('/api/orders', async (req, res) => {
+    try {
+        if (OrderModel && mongoose.connection.readyState === 1) {
+            const orders = await OrderModel.find().sort({ createdAt: -1 }).limit(50).lean();
+            return res.json(orders);
+        }
+        database = loadDatabase();
+        const orders = (database.orders || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0,50);
+        return res.json(orders);
+    } catch (err) {
+        console.error('GET /api/orders error:', err);
+        res.status(500).json({ error: 'Failed to list orders' });
     }
 });
 
