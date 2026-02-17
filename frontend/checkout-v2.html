@@ -328,7 +328,18 @@
     </div>
 
     <script>
-        const BACKEND_URL = 'https://evanw.onrender.com';
+        // Try the hosted backend first, then fall back to local dev server
+        const BACKEND_URLS = typeof window.BACKEND_URLS !== 'undefined' ? window.BACKEND_URLS : [
+            (typeof window.BACKEND_URL !== 'undefined' ? window.BACKEND_URL : 'https://evanw.onrender.com'),
+            'http://localhost:5000'
+        ];
+
+        // Helper: fetch with abort timeout
+        function fetchWithTimeout(url, options = {}, timeout = 5000) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
+        }
 
         // ============ PAGE LOAD ============
         document.addEventListener('DOMContentLoaded', () => {
@@ -489,36 +500,60 @@
             localStorage.removeItem('evansCart');
             console.log('💾 Order saved to localStorage');
 
-            // Send to backend
-            try {
-                console.log('📤 Sending to backend...');
-                const response = await fetch(`${BACKEND_URL}/api/orders`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        customerId: order.customerId,
-                        customerName: order.customerName,
-                        customerEmail: order.email || order.customerEmail,
-                        customerPhone: order.phone || order.customerPhone,
-                        items: order.items,
-                        total: order.pricing.total,
-                        shippingAddress: order.address,
-                        shippingCity: order.city
-                    })
-                });
+            // Send to backend (try hosted first, then localhost) and include clientOrderId
+            console.log('📤 Sending to backend (with fallback)...');
+            let backendSaved = false;
+            let savedId = order.id;
+            for (const base of BACKEND_URLS) {
+                try {
+                    console.log('🔁 Trying backend:', base);
+                    const res = await fetchWithTimeout(`${base.replace(/\/$/, '')}/api/orders`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientOrderId: order.id,
+                            customerId: order.customerId,
+                            customerName: order.customerName,
+                            customerEmail: order.email || order.customerEmail,
+                            customerPhone: order.phone || order.customerPhone,
+                            items: order.items,
+                            subtotal: order.pricing.subtotal,
+                            shippingCost: order.pricing.shipping,
+                            tax: order.pricing.tax,
+                            total: order.pricing.total,
+                            shippingAddress: order.address,
+                            shippingCity: order.city
+                        })
+                    }, 5000);
 
-                if (response.ok) {
-                    const result = await response.json();
-                    console.log('✅ Order saved to backend:', result.order?._id);
+                    console.log('📨 Response from', base, res && res.status);
+                    if (res && res.ok) {
+                        const result = await res.json();
+                        savedId = (result && (result.order && (result.order._id || result.orderId || result.order.metadata?.orderId))) || result.orderId || result.order?._id || result.order?.metadata?.orderId || savedId;
+                        console.log('✅ Saved to backend', base, '-> id:', savedId);
+                        backendSaved = true;
+                        break;
+                    } else {
+                        console.warn('⚠️ Backend save failed (status ' + (res && res.status) + ') for', base);
+                    }
+                } catch (err) {
+                    console.warn('⚠️ Backend connection error for', base, err && err.message);
                 }
-            } catch (err) {
-                console.warn('⚠️ Backend error:', err.message);
             }
 
-            // Redirect
+            if (backendSaved) {
+                order.id = savedId;
+                localStorage.setItem('currentOrder', JSON.stringify(order));
+                console.log('💾 local currentOrder updated with backend id:', savedId);
+            } else {
+                console.warn('⚠️ All backend attempts failed; proceeding with local-only order id:', order.id);
+            }
+
+            // Redirect using the final order id (may have been updated by backend)
             console.log('🎉 Redirecting to confirmation...');
             setTimeout(() => {
-                window.location.href = `confirmation.html?orderId=${orderId}`;
+                const finalId = order.id || orderId;
+                window.location.href = `confirmation.html?orderId=${finalId}`;
             }, 1000);
         }
     </script>
