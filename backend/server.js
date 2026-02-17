@@ -674,6 +674,9 @@ app.get('/api/users', (req, res) => {
 // Shared order creation handler used by both /api/orders and legacy /api/order
 async function createOrderHandler(req, res) {
     try {
+        // Accept a client-provided order id to help keep frontend/backend in sync
+        const clientOrderId = req.body.clientOrderId || req.body.orderId || (req.body.metadata && req.body.metadata.orderId);
+        if (clientOrderId) console.log('ℹ️ clientOrderId received:', clientOrderId);
         const {
             customerId,
             customerName,
@@ -726,10 +729,33 @@ async function createOrderHandler(req, res) {
             metadata: metadata || {}
         };
 
+        // If client supplied an order id, store it in metadata so it can be queried
+        if (clientOrderId) {
+            orderPayload.metadata = orderPayload.metadata || {};
+            orderPayload.metadata.orderId = clientOrderId;
+        }
+
         // If Mongo is connected and OrderModel exists, save to Mongo
         if (OrderModel && mongoose.connection.readyState === 1) {
             console.log('📌 POST /api/orders -> saving to MongoDB');
-            const saved = await OrderModel.create(orderPayload);
+            // Best-effort: if client provided an id, try to use it as _id in Mongo.
+            // If it fails (duplicate key or cast), fall back to letting Mongo assign an _id.
+            let saved = null;
+            try {
+                if (clientOrderId) {
+                    orderPayload._id = clientOrderId;
+                }
+                saved = await OrderModel.create(orderPayload);
+            } catch (mongoErr) {
+                console.warn('⚠️ Could not create Order with client _id, retrying without _id:', mongoErr.message);
+                try {
+                    delete orderPayload._id;
+                    saved = await OrderModel.create(orderPayload);
+                } catch (retryErr) {
+                    console.error('❌ Mongo save retry failed:', retryErr);
+                    throw retryErr;
+                }
+            }
 
             // Fallback stock updates: if you haven't migrated Product to Mongo,
             // still decrement stock in file DB to keep current product flow intact.
@@ -743,13 +769,16 @@ async function createOrderHandler(req, res) {
                 saveDatabase();
             }
 
-            return res.status(201).json({ success: true, order: saved });
+            // Determine a stable orderId to return to the client. If the client provided
+            // a metadata.orderId we preserve and return that; otherwise return the Mongo _id.
+            const returnedOrderId = (saved && saved.metadata && saved.metadata.orderId) ? saved.metadata.orderId : (saved && saved._id ? saved._id.toString() : null);
+            return res.status(201).json({ success: true, order: saved, orderId: returnedOrderId });
         }
 
         // --- Fallback to file-based DB (preserve existing behavior) ---
         console.log('📌 POST /api/orders -> MongoDB not available, saving to file DB fallback');
         const newOrder = {
-            _id: 'ORD' + Date.now(),
+            _id: clientOrderId || ('ORD' + Date.now()),
             customerId: orderPayload.customerId,
             customerName: orderPayload.customerName,
             customerEmail: orderPayload.customerEmail,
@@ -779,7 +808,7 @@ async function createOrderHandler(req, res) {
         database.orders.push(newOrder);
         saveDatabase();
 
-        return res.status(201).json({ success: true, order: newOrder });
+        return res.status(201).json({ success: true, order: newOrder, orderId: newOrder._id });
     } catch (error) {
         console.error('Order creation error:', error);
         return res.status(500).json({ error: 'Failed to create order', details: error.message });
